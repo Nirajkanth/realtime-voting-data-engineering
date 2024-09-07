@@ -1,0 +1,113 @@
+main.py:
+
+
+The script is designed to simulate voter and candidate data for an election system. It performs the following main tasks:
+
+Voter and Candidate Data Generation:
+
+The script fetches random user data from an external API (randomuser.me) to generate voter and candidate profiles.
+Voter data includes information such as voter ID, name, address, and contact details.
+Candidate data includes information like candidate ID, name, party affiliation, biography, and campaign platform.
+Database Setup:
+
+It connects to a PostgreSQL database and creates three tables if they don’t exist:
+voters: Stores voter information.
+candidates: Stores candidate details.
+votes: Records the votes cast by each voter for a candidate.
+Data Insertion:
+
+Voter and candidate data are inserted into the respective tables in the PostgreSQL database.
+Kafka Integration:
+
+The script uses Kafka to produce voter data to a voters_topic. This allows voter information to be streamed to other systems or services in real-time.
+Main Logic:
+
+If there are no candidates in the database, it generates three candidates and inserts them.
+It then generates 1,000 voters, inserts them into the database, and sends each voter’s data to a Kafka topic for further processing.
+This flow simulates an election process by generating voters, candidates, storing their data, and streaming voter data to Kafka for real-time analytics or downstream services.
+
+
+votting.py
+
+
+1. **Kafka Consumer Setup**:
+   - The script connects to a Kafka broker and subscribes to two topics: `candidates_topic` and `voters_topic`.
+   - The `Consumer` is initialized to read messages from Kafka and is set to consume messages from the beginning of the topic using `'auto.offset.reset': 'earliest'`.
+
+2. **PostgreSQL Database Connection**:
+   - A connection is established to a PostgreSQL database named `voting`.
+   - The script queries the database to fetch all candidate information from the `candidates` table and stores them in a list.
+
+3. **Message Consumption**:
+   - The script consumes voter data from the `voters_topic`. It uses `consumer.poll()` to retrieve messages from Kafka.
+   - For each voter message consumed, it randomly selects a candidate from the list of candidates.
+   - The voter’s ID, the selected candidate’s ID, the current time, and the vote are combined into a `vote` object.
+
+4. **Voting Logic**:
+   - Once the voter data and candidate are paired, the vote is inserted into the `votes` table in the PostgreSQL database.
+   - The vote details include the `voter_id`, `candidate_id`, and `voting_time`.
+
+5. **Producing Vote Data**:
+   - After storing the vote in the database, the vote is also produced to a new Kafka topic called `votes_topic`.
+   - The `SerializingProducer` sends the vote message to Kafka, where it can be consumed by other services or components for further processing.
+
+6. **Error Handling**:
+   - The script handles Kafka errors (e.g., if a message fetch fails) and logs any exceptions during the vote insertion process or Kafka message production.
+   - If an error occurs during database insertion, the script catches the error and continues with the next message.
+
+7. **Loop and Throttling**:
+   - The script continuously consumes voter data and processes votes, with a slight delay (`time.sleep(0.2)`) between each vote processing to control the flow.
+
+### Key Steps:
+- **Kafka Consumer**: Subscribes to `voters_topic` and retrieves voter data.
+- **Database Lookup**: Fetches candidate data from the `candidates` table in PostgreSQL.
+- **Vote Processing**: Randomly assigns a candidate to a voter and stores the vote in the `votes` table.
+- **Kafka Producer**: Sends the vote data to the `votes_topic` in Kafka.
+
+This script is designed to simulate a voting system, processing voter data, and associating it with candidates in real-time using Kafka and PostgreSQL.
+
+
+
+spark-streaming.py
+
+
+This PySpark script is designed for streaming, analyzing, and aggregating election-related data in real time using Kafka as the data source. Here's a summary of how the script works:
+
+Key Components:
+SparkSession Initialization:
+
+The script starts by initializing a SparkSession with Kafka and PostgreSQL integration using the appropriate packages and configurations.
+Adaptive query execution is disabled with the configuration spark.sql.adaptive.enabled set to false.
+Vote Schema Definition:
+
+A StructType schema is defined for the votes_topic Kafka messages. This schema includes fields such as voter_id, candidate_id, voting_time, vote, and additional candidate and voter details (e.g., candidate_name, party_affiliation, address, etc.).
+Reading Data from Kafka:
+
+The script reads the streaming data from the Kafka topic votes_topic, where votes are produced.
+Data is ingested as a Kafka stream, and the from_json function is used to deserialize the JSON string into a structured DataFrame using the previously defined schema.
+Data Preprocessing:
+
+The voting_time column is cast to a TimestampType for time-based processing.
+The vote field is cast to an IntegerType for aggregation.
+A watermark of 1 minute is added to ensure data is processed in a time-sensitive manner, allowing for handling late-arriving data.
+Aggregating Data:
+
+Votes per Candidate: The total votes for each candidate are aggregated using the groupBy function, grouping by candidate_id, candidate_name, party_affiliation, and photo_url, and summing up the vote values.
+Turnout by Location: The voter turnout is grouped by the state (from the address) and counted to determine how many votes were cast per state.
+Writing Results to Kafka:
+
+Aggregated Votes: The aggregated votes for each candidate are written back to Kafka on the topic aggregated_votes_per_candidate.
+Turnout by Location: The voter turnout by location is written to another Kafka topic, aggregated_turnout_by_location.
+Checkpoints are used for both streaming jobs to ensure fault tolerance, allowing the process to restart from the point of failure if needed.
+Streaming Mode:
+
+The script uses the update output mode, meaning that the aggregated results are updated continuously as new data arrives.
+It ensures that new results are processed and appended to the output without reprocessing older data unnecessarily.
+Termination:
+
+The script uses awaitTermination() to keep the Spark streaming jobs running indefinitely, ensuring continuous processing of the streaming data.
+Key Takeaways:
+Kafka Integration: The script consumes real-time votes data from Kafka, processes it, and publishes the aggregated results back to Kafka.
+Spark Structured Streaming: It performs real-time aggregations such as total votes per candidate and turnout by location.
+Fault Tolerance: The use of checkpointing ensures that the system can recover from any failures during the streaming process.
+This solution is ideal for real-time election monitoring or similar voting systems.
