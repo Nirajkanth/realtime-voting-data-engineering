@@ -80,6 +80,9 @@ if __name__ == "__main__":
         .outputMode("update") \
         .start()
 
+        # checkpoints are used to prevent reprocessing, if anything fails it will start from where it failed using checkpoints
+        # outputmode shiuld be update since we aggregate each record dont use append
+
     turnout_by_location_to_kafka = turnout_by_location.selectExpr("to_json(struct(*)) AS value") \
         .writeStream \
         .format("kafka") \
@@ -90,7 +93,7 @@ if __name__ == "__main__":
         .start()
 
     # Await termination for the streaming queries
-    votes_per_candidate_to_kafka.awaitTermination()
+    votes_per_candidate_to_kafka.awaitTermination()  # to keep the streaming jobs running
     turnout_by_location_to_kafka.awaitTermination()
 
     # candidate_schema = StructType([

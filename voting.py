@@ -14,7 +14,7 @@ conf = {
 
 consumer = Consumer(conf | {
     'group.id': 'voting-group',
-    'auto.offset.reset': 'earliest',
+    'auto.offset.reset': 'earliest',  # read the message from beginning of the topic
     'enable.auto.commit': False
 })
 
@@ -92,6 +92,7 @@ if __name__ == "__main__":
 
                     conn.commit()
 
+                    # storing vote details into kafka votes_topic 
                     producer.produce(
                         'votes_topic',
                         key=vote["voter_id"],
